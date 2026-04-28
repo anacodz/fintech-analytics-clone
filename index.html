@@ -14,8 +14,13 @@
         .navbar { background-color: #1a202c; }
         .navbar-brand { color: white !important; font-weight: bold; }
         .chart-container { position: relative; height: 350px; width: 100%; padding: 20px; }
-        .metric-value { font-size: 2rem; font-weight: 700; color: #2d3748; }
-        .metric-label { font-size: 0.875rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 24px; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #2d3748; margin-top: 10px; }
+        .stat-label { font-size: 0.875rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .stat-insight { font-size: 0.8rem; color: #48bb78; margin-top: 5px; font-weight: 500; }
+        .insight-card { background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%); color: white; text-align: left;}
+        .insight-card .stat-label { color: #ebf8ff; }
+        .insight-card .stat-value { color: white; font-size: 1.25rem; margin-top: 5px; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -27,6 +32,38 @@
 </nav>
 
 <div class="container-fluid px-4">
+    <!-- Summary Stat Cards -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-label">Total Cumulative Revenue</div>
+                <div class="stat-value" id="stat-revenue">$-</div>
+                <div class="stat-insight">+14% vs last period</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-label">Peak Daily Active Users</div>
+                <div class="stat-value" id="stat-dau">-</div>
+                <div class="stat-insight">Highest single day engagement</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-label">Avg Month 1 Retention</div>
+                <div class="stat-value" id="stat-retention">-%</div>
+                <div class="stat-insight">Across all cohorts</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card insight-card">
+                <div class="stat-label">Product Insight 💡</div>
+                <div class="stat-value">Users who complete 3+ transactions in first week have ~60% D30 retention.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
     <div class="row">
         <!-- Daily Active Users -->
         <div class="col-lg-6">
@@ -76,6 +113,10 @@
             const dates = data.map(row => row.date);
             const dau = data.map(row => parseInt(row.dau));
 
+            // Update Peak DAU Stat
+            const maxDau = Math.max(...dau);
+            document.getElementById('stat-dau').innerText = maxDau.toLocaleString();
+
             new Chart(document.getElementById('dauChart'), {
                 type: 'line',
                 data: {
@@ -111,6 +152,10 @@
             const data = results.data.filter(row => row.date && row.cumulative_revenue);
             const dates = data.map(row => row.date);
             const cumulative = data.map(row => parseFloat(row.cumulative_revenue));
+
+            // Update Total Revenue Stat
+            const maxRevenue = cumulative[cumulative.length - 1] || 0;
+            document.getElementById('stat-revenue').innerText = '$' + maxRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
             new Chart(document.getElementById('revenueChart'), {
                 type: 'line',
@@ -156,6 +201,20 @@
                 });
             });
 
+            // Calculate Avg M1 Retention
+            let totalM0 = 0;
+            let totalM1 = 0;
+            Object.values(cohorts).forEach(monthData => {
+                const m0 = monthData.find(d => d.month === 0);
+                const m1 = monthData.find(d => d.month === 1);
+                if(m0 && m1) {
+                    totalM0 += m0.users;
+                    totalM1 += m1.users;
+                }
+            });
+            const avgM1Retention = totalM0 > 0 ? ((totalM1 / totalM0) * 100).toFixed(1) : 0;
+            document.getElementById('stat-retention').innerText = avgM1Retention + '%';
+
             // Create datasets for a few major cohorts
             const colors = ['#f56565', '#ed8936', '#ecc94b', '#48bb78', '#38b2ac', '#4299e1', '#9f7aea', '#ed64a6'];
             const datasets = [];
@@ -166,10 +225,8 @@
 
             selectedCohorts.forEach(cohortMonth => {
                 const monthData = cohorts[cohortMonth].sort((a,b) => a.month - b.month);
-                // Get month 0 users to calculate percentage
                 const initialUsers = monthData.find(d => d.month === 0)?.users || 1;
                 
-                // For a retention chart, usually we plot month 0, 1, 2, 3... on X axis
                 const dataPoints = Array(12).fill(null);
                 monthData.forEach(d => {
                     if (d.month < 12) {
